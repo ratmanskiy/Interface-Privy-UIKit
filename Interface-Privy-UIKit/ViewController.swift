@@ -84,25 +84,33 @@ final class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        configurePrivy()
-        
         setupUI()
         setupActions()
+        
+        Task {
+            await configurePrivy()
+        }
     }
     
-    private func configurePrivy() {
+    private func configurePrivy() async {
         let config = PrivyConfig(appId: "<APP_ID>",
                                  appClientId: "<CLIENT_ID>")
         let privy: Privy = PrivySdk.initialize(config: config)
         self.privy = privy
         
-        //privy.setAuthStateChangeCallback({ state in
-        //    print(state)
-        //})
-
-        //privy.embeddedWallet.setEmbeddedWalletStateChangeCallback({ state in
-        //    print(state)
-        //})
+        await privy.awaitReady()
+        
+        privy.setAuthStateChangeCallback({ state in
+            print(state)
+        })
+        
+        privy.email.setOtpFlowStateChangeCallback({ state in
+            print(state)
+        })
+        
+        privy.embeddedWallet.setEmbeddedWalletStateChangeCallback({ state in
+            print(state)
+        })
     }
     
     private func setupUI() {
@@ -168,14 +176,12 @@ final class ViewController: UIViewController {
     
     private let chainId = 8453
     private let sellToken = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-    private let sellAmount = 1000000000000
+    private let sellAmount = 10000000000000
     private let buyToken = "0x0578d8a44db98b23bf096a382e016e29a5ce0ffe"
     
     @objc private func sendTransactionTapped() {
         Task {
             do {
-                await privy.awaitReady()
-                
                 try await privy.embeddedWallet.connectWallet()
                 
                 guard case .connected(let wallets) = privy.embeddedWallet.embeddedWalletState else {
