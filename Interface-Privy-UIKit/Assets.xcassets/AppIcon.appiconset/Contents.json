@@ -1,28 +1,7 @@
 {
   "images" : [
     {
-      "idiom" : "universal",
-      "platform" : "ios",
-      "size" : "1024x1024"
-    },
-    {
-      "appearances" : [
-        {
-          "appearance" : "luminosity",
-          "value" : "dark"
-        }
-      ],
-      "idiom" : "universal",
-      "platform" : "ios",
-      "size" : "1024x1024"
-    },
-    {
-      "appearances" : [
-        {
-          "appearance" : "luminosity",
-          "value" : "tinted"
-        }
-      ],
+      "filename" : "IMAGE 2023-01-23 13:55:26.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"

@@ -70,6 +70,14 @@ final class ViewController: UIViewController {
         return button
     }()
     
+    private let resultLabel: UILabel = {
+        let label = UILabel()
+        label.text = ""
+        label.numberOfLines = 0
+        label.textColor = UIColor.white
+        return label
+    }()
+    
     private let transactionButton: UIButton = {
         let button = UIButton(type: .system)
         button.setTitle("Send tranaction", for: .normal)
@@ -126,6 +134,7 @@ final class ViewController: UIViewController {
         stackView.addArrangedSubview(spacerView)
         spacerView.setContentHuggingPriority(.defaultLow, for: .vertical)
         
+        stackView.addArrangedSubview(resultLabel)
         stackView.addArrangedSubview(transactionButton)
         
         NSLayoutConstraint.activate([
@@ -136,6 +145,7 @@ final class ViewController: UIViewController {
             
             sendCodeButton.heightAnchor.constraint(equalToConstant: 44),
             verifyButton.heightAnchor.constraint(equalToConstant: 44),
+            resultLabel.heightAnchor.constraint(equalToConstant: 44),
             transactionButton.heightAnchor.constraint(equalToConstant: 44)
         ])
     }
@@ -193,7 +203,7 @@ final class ViewController: UIViewController {
                 }
                 
                 let response = try await fetchQuote(userAddress: wallet.address)
-                let transaction = [
+                let transaction: [String: String?] = [
                     "to": response.quoteData.transaction.to,
                     "from": wallet.address,
                     "data": response.quoteData.transaction.data,
@@ -202,9 +212,13 @@ final class ViewController: UIViewController {
                 ]
                 let txHash = try await send(userAddress: wallet.address,
                                             transaction: transaction)
-                print("SUCCESS: \(txHash)")
+                let result = "SUCCESS: \(txHash)"
+                print(result)
+                resultLabel.text = result
             } catch {
-                print("FAILURE: \(error)")
+                let result = "FAILURE: \(error)"
+                print(result)
+                resultLabel.text = result
             }
         }
     }
@@ -212,6 +226,7 @@ final class ViewController: UIViewController {
     private func fetchQuote(userAddress: String) async throws -> QuoteResponse {
         let urlString = "https://tx.interface.social/swap/quote?user_address=\(userAddress)&chain_id=\(chainId)&sell_token=\(sellToken)&sell_amount=\(sellAmount)&buy_token=\(buyToken)&slippage_bps=100"
         
+        print(urlString)
         guard let url = URL(string: urlString) else {
             throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
         }
@@ -237,6 +252,7 @@ final class ViewController: UIViewController {
         let provider = try privy.embeddedWallet.getEthereumProvider(for: userAddress)
         
         print("Request sent")
+        resultLabel.text = "Request sent"
         
         let transactionHash = try await provider.request(
             RpcRequest(
