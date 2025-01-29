@@ -78,6 +78,15 @@ final class ViewController: UIViewController {
         return label
     }()
     
+    private let personalSignButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("Personal Sign", for: .normal)
+        button.backgroundColor = .systemPurple
+        button.setTitleColor(.white, for: .normal)
+        button.layer.cornerRadius = 10
+        return button
+    }()
+    
     private let transactionButton: UIButton = {
         let button = UIButton(type: .system)
         button.setTitle("Send tranaction", for: .normal)
@@ -92,21 +101,23 @@ final class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        initPrivy()
+        
         setupUI()
         setupActions()
-        
-        Task {
-            await configurePrivy()
-        }
     }
     
-    private func configurePrivy() async {
-        let config = PrivyConfig(appId: "<APP_ID>",
-                                 appClientId: "<CLIENT_ID>")
-        let privy: Privy = PrivySdk.initialize(config: config)
-        self.privy = privy
+    private func initPrivy() {
+        print("Configuring Privy!")
         
-        await privy.awaitReady()
+        let config = PrivyConfig(
+            appId: "cm6h8hqnv001jcacmv5g6w779",
+            appClientId: "client-WY5gFSn13e5or7RthquPpZP1dHsEitCAkfWb74GNJzWEU"
+        )
+        
+        let privy: Privy = PrivySdk.initialize(config: config)
+        
+        self.privy = privy
         
         privy.setAuthStateChangeCallback({ state in
             print(state)
@@ -121,20 +132,25 @@ final class ViewController: UIViewController {
         })
     }
     
+    private func configurePrivy() async {
+        await privy.awaitReady()
+    }
+    
     private func setupUI() {
         view.backgroundColor = .systemBackground
         
         view.addSubview(stackView)
         
-        [emailField, sendCodeButton, codeField, verifyButton].forEach {
+        [emailField, sendCodeButton, codeField, verifyButton, personalSignButton].forEach {
             stackView.addArrangedSubview($0)
         }
-
+        
         let spacerView = UIView()
         stackView.addArrangedSubview(spacerView)
         spacerView.setContentHuggingPriority(.defaultLow, for: .vertical)
         
         stackView.addArrangedSubview(resultLabel)
+        stackView.addArrangedSubview(personalSignButton)
         stackView.addArrangedSubview(transactionButton)
         
         NSLayoutConstraint.activate([
@@ -146,6 +162,7 @@ final class ViewController: UIViewController {
             sendCodeButton.heightAnchor.constraint(equalToConstant: 44),
             verifyButton.heightAnchor.constraint(equalToConstant: 44),
             resultLabel.heightAnchor.constraint(equalToConstant: 44),
+            personalSignButton.heightAnchor.constraint(equalToConstant: 44),
             transactionButton.heightAnchor.constraint(equalToConstant: 44)
         ])
     }
@@ -153,12 +170,13 @@ final class ViewController: UIViewController {
     private func setupActions() {
         sendCodeButton.addTarget(self, action: #selector(sendCodeTapped), for: .touchUpInside)
         verifyButton.addTarget(self, action: #selector(verifyCodeTapped), for: .touchUpInside)
+        personalSignButton.addTarget(self, action: #selector(personalSignTapped), for: .touchUpInside)
         transactionButton.addTarget(self, action: #selector(sendTransactionTapped), for: .touchUpInside)
     }
     
     @objc private func sendCodeTapped() {
         guard let email = emailField.text,
-                !email.isEmpty else {
+              !email.isEmpty else {
             return
         }
         
@@ -189,6 +207,30 @@ final class ViewController: UIViewController {
     private let sellAmount = 10000000000000
     private let buyToken = "0x0578d8a44db98b23bf096a382e016e29a5ce0ffe"
     
+    @objc private func personalSignTapped() {
+        Task {
+            do {
+                try await privy.embeddedWallet.connectWallet()
+                
+                guard case .connected(let wallets) = privy.embeddedWallet.embeddedWalletState else {
+                    throw MyError.walletNotConnected
+                }
+                
+                guard let wallet = wallets.first, wallet.chainType == .ethereum else {
+                    throw MyError.noEthereumWalletsAvailable
+                }
+                
+                let data = RpcRequest(method: "personal_sign", params: ["Hello Interface team!", wallet.address])
+                let provider = try privy.embeddedWallet.getEthereumProvider(for: wallet.address)
+                let response = try await provider.request(data)
+                
+                print("personal sign response: \(response)")
+            } catch {
+                print("personal sign error: \(error)")
+            }
+        }
+    }
+    
     @objc private func sendTransactionTapped() {
         Task {
             do {
@@ -197,7 +239,7 @@ final class ViewController: UIViewController {
                 guard case .connected(let wallets) = privy.embeddedWallet.embeddedWalletState else {
                     throw MyError.walletNotConnected
                 }
-
+                
                 guard let wallet = wallets.first, wallet.chainType == .ethereum else {
                     throw MyError.noEthereumWalletsAvailable
                 }
@@ -243,25 +285,31 @@ final class ViewController: UIViewController {
     }
     private func send(userAddress: String,
                       transaction: [String: String?]) async throws -> String {
-        let txData = try JSONEncoder().encode(transaction)
-
-        guard let txString = String(data: txData, encoding: .utf8) else {
-            throw MyError.dataParseError
-        }
-        
-        let provider = try privy.embeddedWallet.getEthereumProvider(for: userAddress)
-        
-        print("Request sent")
-        resultLabel.text = "Request sent"
-        
-        let transactionHash = try await provider.request(
-            RpcRequest(
-                method: "eth_sendTransaction",
-                params: [txString]
+        do {
+            let txData = try JSONEncoder().encode(transaction)
+            
+            guard let txString = String(data: txData, encoding: .utf8) else {
+                throw MyError.dataParseError
+            }
+            
+            let provider = try privy.embeddedWallet.getEthereumProvider(for: userAddress)
+            
+            print("Request sent")
+            print("Tx string: \(txString)")
+            resultLabel.text = "Request sent"
+            
+            let transactionHash = try await provider.request(
+                RpcRequest(
+                    method: "eth_sendTransaction",
+                    params: [txString]
+                )
             )
-        )
-
-        return transactionHash
+            
+            return transactionHash
+        } catch {
+            print("Send transaction error: \(error)")
+            throw error
+        }
     }
 }
 
